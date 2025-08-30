@@ -10,12 +10,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 
-# --- 1. Load Data ---
+# Load Data
 file_path = 'final_dataset.parquet'
 
 if not os.path.exists(file_path):
 	print(f"Error: The file '{file_path}' was not found. Please ensure it's in the correct directory.")
-	exit() # Exit if file not found
+	exit() 
 else:
 	try:
 		df = pd.read_parquet(file_path)
@@ -25,9 +25,9 @@ else:
 		print(df.head())
 	except Exception as e:
 		print(f"Error loading Parquet file: {e}")
-		exit() # Exit if loading fails
+		exit()
 
-# --- 2. Feature Selection ---
+# Feature Selection
 features = [
 	'rating',
 	'text_len',
@@ -63,7 +63,7 @@ missing_features = [f for f in features if f not in df.columns]
 if missing_features:
 	print(f"Error: Missing required features in the dataset: {missing_features}")
 	print("Please ensure your 'final_dataset.parquet' contains these columns.")
-	features = [f for f in features if f in df.columns] # Proceed with available
+	features = [f for f in features if f in df.columns] 
 	if not features:
 		print("No valid features remaining. Exiting.")
 		exit()
@@ -72,15 +72,14 @@ if missing_features:
 
 data = df[features].copy()
 
-# Handle potential NaNs in features (e.g., fill with mean or median)
 for col in features:
 	if data[col].isnull().any():
 		data[col] = data[col].fillna(data[col].mean())
 		print(f"Filled NaN values in '{col}' with its mean.")
 
-# --- 3. Data Preprocessing (Scaling) ---
+# Data Preprocessing (Scaling)
 scaler = MinMaxScaler()
-scaled_data_np = scaler.fit_transform(data) # Keep as numpy for now
+scaled_data_np = scaler.fit_transform(data)
 
 # Convert to PyTorch tensors
 scaled_data_tensor = torch.tensor(scaled_data_np, dtype=torch.float32)
@@ -90,27 +89,27 @@ X_train_tensor, X_val_tensor = train_test_split(scaled_data_tensor, test_size=0.
 
 # Create DataLoader for batching
 batch_size = 32
-train_dataset = TensorDataset(X_train_tensor, X_train_tensor) # Input and target are the same for AE
+train_dataset = TensorDataset(X_train_tensor, X_train_tensor) 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
 val_dataset = TensorDataset(X_val_tensor, X_val_tensor)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-# --- 4. Autoencoder Model Definition (PyTorch) ---
+# Autoencoder Model Definition (PyTorch) 
 class Autoencoder(nn.Module):
 	def __init__(self, input_dim, encoding_dim):
 		super(Autoencoder, self).__init__()
 		# Encoder
 		self.encoder = nn.Sequential(
 			nn.Linear(input_dim, encoding_dim * 2),
-			nn.LeakyReLU(0.01),  # <--- Change to LeakyReLU
+			nn.LeakyReLU(0.01), 
 			nn.Linear(encoding_dim * 2, encoding_dim),
-			nn.LeakyReLU(0.01)   # <--- Change to LeakyReLU
+			nn.LeakyReLU(0.01)   
 		)
-		# Decoder (it's good practice to change it here too)
+		
 		self.decoder = nn.Sequential(
 			nn.Linear(encoding_dim, encoding_dim * 2),
-			nn.LeakyReLU(0.01),  # <--- Change to LeakyReLU
+			nn.LeakyReLU(0.01),  
 			nn.Linear(encoding_dim * 2, input_dim),
 			nn.Sigmoid()
 		)
@@ -121,17 +120,19 @@ class Autoencoder(nn.Module):
 		return decoded
 
 input_dim = X_train_tensor.shape[1]
-encoding_dim = 10 # Dimensionality of the latent space (can be tuned)
+
+# Dimensionality of the latent space 
+encoding_dim = 10 
 
 model = Autoencoder(input_dim, encoding_dim)
 print("\nAutoencoder Model Summary (PyTorch):")
-print(model) # PyTorch prints module structure directly
+print(model) 
 
 # Define Loss function and Optimizer
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# --- 5. Training the Autoencoder ---
+# Training the Autoencoder
 epochs = 50
 print(f"\nTraining Autoencoder for {epochs} epochs...")
 
@@ -141,25 +142,25 @@ model.to(device)
 print(f"Using device: {device}")
 
 for epoch in range(epochs):
-	model.train() # Set model to training mode
+	model.train() 
 	running_loss = 0.0
-	for data_batch, _ in train_loader: # _ for target, which is same as input
+	for data_batch, _ in train_loader: 
 		data_batch = data_batch.to(device)
 
-		optimizer.zero_grad() # Clear gradients
-		outputs = model(data_batch) # Forward pass
-		loss = criterion(outputs, data_batch) # Calculate loss
-		loss.backward() # Backward pass
-		optimizer.step() # Update weights
+		optimizer.zero_grad() 
+		outputs = model(data_batch)
+		loss = criterion(outputs, data_batch) 
+		loss.backward() 
+		optimizer.step() 
 
 		running_loss += loss.item() * data_batch.size(0)
 
 	train_loss = running_loss / len(train_dataset)
 
 	# Validation phase
-	model.eval() # Set model to evaluation mode
+	model.eval() 
 	val_loss = 0.0
-	with torch.no_grad(): # No gradient calculation needed
+	with torch.no_grad(): 
 		for data_batch_val, _ in val_loader:
 			data_batch_val = data_batch_val.to(device)
 			outputs_val = model(data_batch_val)
@@ -171,8 +172,8 @@ for epoch in range(epochs):
 
 print("\nTraining complete.")
 
-# --- 6. Calculate Reconstruction Error (PyTorch) ---
-model.eval() # Set model to evaluation mode
+# Calculate Reconstruction Error (PyTorch) 
+model.eval() 
 all_reconstructions = []
 with torch.no_grad():
 	for i in range(0, len(scaled_data_tensor), batch_size):
@@ -185,10 +186,10 @@ reconstructions_np = np.vstack(all_reconstructions)
 # Calculate Mean Squared Error (MSE) between original and reconstructed data
 reconstruction_errors = np.mean(np.square(scaled_data_np - reconstructions_np), axis=1)
 
-# --- 7. Z-scoring the Reconstruction Error ---
+# Z-scoring the Reconstruction Error 
 z_scored_reconstruction_errors = zscore(reconstruction_errors)
 
-# Add the z-scored errors to your original DataFrame
+# Add the z-scored errors to original dataframe
 df['ae_reconstruction_error_zscore'] = z_scored_reconstruction_errors
 
 print("\nReconstruction errors calculated and z-scored.")
@@ -199,16 +200,15 @@ print(df[['ae_reconstruction_error_zscore'] + features].head(10))
 threshold = 2.0
 anomalies = df[df['ae_reconstruction_error_zscore'] > threshold]
 print(f"\nNumber of potential anomalies (z-score > {threshold}): {len(anomalies)}")
-# --- MODIFIED PART ---
-# print more anomalies and all of their original features
+
+# print more anomalies and all of their original features (for viewing purposes)
 if not anomalies.empty:
 	print("\nprinting the top 20 anomalies with all their features (sorted by anomaly score):")
 
-	# Set pandas print options to see all data without truncation
-	pd.set_option('display.max_rows', 50)         # Show up to 50 rows
-	pd.set_option('display.max_columns', None)    # Show all columns
-	pd.set_option('display.width', 1000)          # Widen the output area
-	pd.set_option('display.max_colwidth', 150)    # Show more text in the 'text' column
+	pd.set_option('display.max_rows', 50)        
+	pd.set_option('display.max_columns', None)    
+	pd.set_option('display.width', 1000)          
+	pd.set_option('display.max_colwidth', 150)   
 
 	# Sort by the anomaly score to see the most anomalous first and show the top 20
 	print(anomalies.sort_values(by='ae_reconstruction_error_zscore', ascending=False).head(20))
@@ -216,20 +216,16 @@ if not anomalies.empty:
 else:
 	print("\nNo anomalies detected above the specified threshold.")
 
-	# --- 8. Investigating the Latent Space (Optional) ---
-print("\n--- Investigating the Latent Space ---")
+# Investigating the Latent Space
+print("Investigating the Latent Space")
 
-# First, get the encoded representation of the entire dataset
 model.eval()
 with torch.no_grad():
-	# We only need the encoder part for this
 	encoded_data_tensor = model.encoder(scaled_data_tensor.to(device))
 	encoded_data_np = encoded_data_tensor.cpu().numpy()
 
-# Create a DataFrame for the encoded dimensions
 encoded_df = pd.DataFrame(encoded_data_np, columns=[f'latent_dim_{i+1}' for i in range(encoding_dim)])
 
-# Combine with the original (unscaled) features to make interpretation easier
 combined_df = pd.concat([df[features].reset_index(drop=True), encoded_df], axis=1)
 
 # Calculate the correlation matrix
@@ -239,7 +235,9 @@ correlation_matrix = combined_df.corr()
 latent_correlations = correlation_matrix[encoded_df.columns].loc[features]
 
 print("\nCorrelation of Latent Dimensions with Original Features:")
-# print with a heatmap-style background for easier reading
 print(latent_correlations)
 print("\nStandard Deviation of each Latent Dimension:")
 print(encoded_df.std())
+
+df.to_parquet('dataset_with_anomaly_scores.parquet')
+df.to_csv('dataset_with_anomaly_scores.csv', index=False)
