@@ -198,6 +198,12 @@ print(df[['ae_reconstruction_error_zscore'] + features].head(10))
 
 # Identify potential anomalies
 threshold = 2.0
+
+# Add binary "is_outlier" column (1 if anomaly, 0 if normal)
+df['is_outlier'] = (df['ae_reconstruction_error_zscore'] > threshold).astype(int)
+
+print(df['is_outlier'].value_counts())
+
 anomalies = df[df['ae_reconstruction_error_zscore'] > threshold]
 print(f"\nNumber of potential anomalies (z-score > {threshold}): {len(anomalies)}")
 
